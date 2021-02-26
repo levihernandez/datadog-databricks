@@ -1,0 +1,48 @@
+%python 
+
+dbutils.fs.put("dbfs:/<init-script-folder>/datadog-install-driver-workers.sh","""
+#!/bin/bash
+
+# compiled from https://gist.github.com/ChristineTChen/dd6eecaa111579f9be27316b8b49b159 & https://docs.databricks.com/clusters/clusters-manage.html
+
+# Experimental: In addition to Spark metrics, we are testing to see if we can extract infra metrics from the DB VMs
+
+echo "Running on the driver? ${DB_IS_DRIVER}"
+echo "Driver ip: ${DB_DRIVER_IP}"
+# assign ${DB_DRIVER_PORT} in an env var 
+
+cat <<EOF >> /tmp/start_datadog.sh
+#!/bin/bash
+
+  # Declaring the agent outside the if \${DB_IS_DRIVER} helps us deploy the agent on all hosts
+
+  # install the Datadog agent on driver & workers
+  DD_AGENT_MAJOR_VERSION=7 DD_API_KEY=<your-api-key> DD_SITE="datadoghq.com" bash -c "\$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script.sh)"
+  # Assign a tag for the environment "env:" for the master and workers
+  sudo sed -i 's/^# env: <environment name>\$/env: databricks/g' /etc/datadog-agent/datadog.yaml
+  
+
+if [ \${DB_IS_DRIVER} ]; then
+  echo "On the driver. Installing Datadog ..."
+  
+  current=\$(hostname -I | xargs)  
+  # Install the latest Spark structured streaming metrics
+  sudo -u dd-agent -- datadog-agent integration install  datadog-spark==1.19.0
+
+  # WRITING SPARK CONFIG FILE FOR STREAMING SPARK METRICS
+  echo "init_config:
+instances:
+    - spark_url: http://\${DB_DRIVER_IP}:\${DB_DRIVER_PORT}
+      spark_cluster_mode: spark_driver_mode
+      cluster_name: \${current}
+      streaming_metrics: true" > /etc/datadog-agent/conf.d/spark.d/conf.yaml
+
+fi
+  # RESTARTING AGENT
+  sudo service datadog-agent restart
+EOF
+
+# CLEANING UP
+chmod a+x /tmp/start_datadog.sh
+/tmp/start_datadog.sh >> /tmp/datadog_start.log 2>&1 & disown
+""", True)
