@@ -9,23 +9,37 @@ dbutils.fs.put("dbfs:/<init-script-folder>/datadog-install-driver-workers.sh",""
 
 echo "Running on the driver? ${DB_IS_DRIVER}"
 echo "Driver ip: ${DB_DRIVER_IP}"
-# assign ${DB_DRIVER_PORT} in an env var 
+
+# Assign the following as cluster environments:
+# DD_API_KEY=<dd-api=key>
+# DD_SITE="datadoghq.com"
+# DB_DRIVER_PORT=42589
+# DD_ENV=prod
+# DD_ENVIRONMENT=databricks
 
 cat <<EOF >> /tmp/start_datadog.sh
 #!/bin/bash
 
+
   # Declaring the agent outside the if \${DB_IS_DRIVER} helps us deploy the agent on all hosts
 
   # install the Datadog agent on driver & workers
-  DD_AGENT_MAJOR_VERSION=7 DD_API_KEY=<your-api-key> DD_SITE="datadoghq.com" bash -c "\$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script.sh)"
-  # Assign a tag for the environment "env:" for the master and workers
-  sudo sed -i 's/^# env: <environment name>\$/env: databricks/g' /etc/datadog-agent/datadog.yaml
+  DD_AGENT_MAJOR_VERSION=7 DD_API_KEY=${DD_API_KEY} DD_SITE="datadoghq.com" bash -c "\$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script.sh)"
   
+  # Inject cluster environment as tags into datadog.yaml conf file on all nodes
+  sudo sed -i 's/^# env: <environment name>\$/env: ${DD_ENV}/g' /etc/datadog-agent/datadog.yaml
+  sudo sed -i 's/^# tags:\$/tags:/g' /etc/datadog-agent/datadog.yaml
+  sudo sed -i 's/^#   - environment:dev\$/  - environment:${DD_ENVIRONMENT}/g' /etc/datadog-agent/datadog.yaml
+  sudo sed -i 's/^#   - <TAG_KEY>:<TAG_VALUE>\$/   - cluster_id:${DB_CLUSTER_ID}\n   - cluster_name:${DB_CLUSTER_NAME}\n   - cluster_ip:${SPARK_LOCAL_IP}/g' /etc/datadog-agent/datadog.yaml
 
-if [ \${DB_IS_DRIVER} ]; then
-  echo "On the driver. Installing Datadog ..."
   
-  current=\$(hostname -I | xargs)  
+if [[ \$DB_IS_DRIVER = "TRUE" ]]; then
+
+  echo "Installing Datadog agent in the driver (master node) ..."
+  
+  
+  current=\$(hostname -I | xargs)
+  
   # Install the latest Spark structured streaming metrics
   sudo -u dd-agent -- datadog-agent integration install  datadog-spark==1.19.0
 
