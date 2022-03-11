@@ -5,5 +5,7 @@
   * Install the Datadog agent on all the nodes
   * Test a way in which we can get infra metrics
   * Visualize nodes in DD Hosts Map
-* TODO:
-  * Test a way to get worker metrics via JMX  
+
+* To collect Spark logs and better organize your data via tags, copy the contents of [`databricks-datadog_allNodes.md`]() as a Python notebook cell.
+ * The script can be used for Global Init configs.
+ * The script can be used for Cluster only configs (copy/paste the first DD values to the Advanced Options > Environment Variables config.
