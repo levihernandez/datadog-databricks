@@ -1,6 +1,6 @@
 ### Push via UDP to Datadog
 
-```
+```python
 # [Customer, Databricks admin role]  Assign the name of the dbfs directory where the Datadog init script will be stored
 initdir = "datadog"
 
@@ -225,7 +225,7 @@ if __name__ == "__main__":
 
 ### Execute init script in notebook
 
-```
+```bash
 %sh 
 # Collects all available data in the SQL endpoint
 python /dbfs/datadog/SparkApiLogsToDatadog.py
